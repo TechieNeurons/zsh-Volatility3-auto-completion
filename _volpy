@@ -7,43 +7,44 @@ _vol_plugins() {
 
     # _multi_parts -i -S "." -q . _vol_plugin_list
 
-    # 2. Determine how many dots we currently have
-    # This helps us figure out if we are at "linux", "linux.malware", etc.
-    local dots="${cur_prefix//[^.]/}"
-    local level=$((${#dots} + 1))
-    local prefix_filter="${cur_prefix%.*}"
+# 2. Tell Zsh that we are completing a string separated by dots
+    # This allows Zsh to handle the 'li -> linux' part naturally
+    local sep="."
+    compset -P "*$sep"
 
-    # 3. Filter matches for the current level
+    # 3. Filter the list based on what is already typed before the last dot
+    local prefix="${IPREFIX}"
+    local -a choices
+    local -a full_matches
+    
     for p in $_vol_plugin_list; do
-        # If we have a prefix (e.g., "linux."), only look at plugins starting with it
-        if [[ "$level" -gt 1 ]]; then
-            [[ "$p" != "$prefix_filter"* ]] && continue
+        if [[ "$p" == "$prefix"* ]]; then
+            # Get the next part after the current prefix
+            local rest="${p#$prefix}"
+            local next_part="${rest%%.*}"
+            choices+=("$next_part")
+            full_matches+=("$p")
         fi
-
-        # Extract the specific segment at our current level
-        local segment=$(echo "$p" | cut -d. -f$level)
-        [[ -n "$segment" ]] && matches+=("$segment")
     done
+    
+    # Remove duplicates
+    choices=(${(u)choices})
 
-    # Remove duplicates from matches
-    matches=(${(u)matches})
-
-    # 4. Completion Behavior
-    if (( ${#matches} == 1 )); then
-        # Check if this single match has children (more dots exist in the full plugin list)
-        local full_plugin_match="${prefix_filter}.${matches[1]}"
-        [[ "$level" -eq 1 ]] && full_plugin_match="${matches[1]}"
-        
-        if [[ -n "${(M)_vol_plugin_list:#${full_plugin_match}.*}" ]]; then
-            # More levels exist: complete the word and add a dot
-            compadd -S "." -- "$matches"
+    # 4. Logic for Dot vs Space
+    if (( ${#choices} == 1 )); then
+        local item="$choices[1]"
+        # Check if this specific match has more levels in any plugin
+        if [[ -n "${full_matches[(r)$prefix$item.*]}" ]]; then
+            # There are deeper levels: add dot, but keep the suffix 'quiet'
+            compadd -S "." -q -- "$item"
         else
-            # Final level: complete the word and add a space
-            compadd -S " " -- "$matches"
+            # This is the leaf: add a space
+            compadd -S " " -- "$item"
         fi
     else
-        # Multiple matches: complete as much as possible, no suffix
-        compadd -S "" -- "$matches"
+        # Multiple choices (e.g., windows.malware vs windows.registry)
+        # Add no suffix so the user can keep typing
+        compadd -S "" -- "$choices"
     fi
 }
 
