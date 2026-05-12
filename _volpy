@@ -8,14 +8,18 @@ _vol_plugins() {
 
     # _multi_parts -i -S "." -q . _vol_plugin_list
 
-    # Handle the "dots" as separators properly
     local cur="${words[CURRENT]}"
-    
-    # 1. If there's a dot, tell Zsh to ignore everything before the last dot
-    compset -P "*."
 
-    # 2. Filter the plugins based on the prefix (including dots we've typed)
-    # IPREFIX is the part handled by compset -P (e.g., "linux.")
+    # Logic to handle the "already completed" state
+    # If the user types 'linux' and hits tab, we want 'linux.'
+    if [[ -n "${_vol_plugin_list[(r)$cur.*]}" && "$cur" != *.* ]]; then
+        compadd -S "." -q -- "$cur"
+        return
+    fi
+
+    # Standard completion logic for sub-levels
+    compset -P "*."
+    
     for p in $_vol_plugin_list; do
         if [[ "$p" == "$IPREFIX"* ]]; then
             local rest="${p#$IPREFIX}"
@@ -25,21 +29,18 @@ _vol_plugins() {
 
     matches=(${(u)matches})
 
-    # 3. CRITICAL FIX: Determine suffix behavior
     if (( ${#matches} == 1 )); then
         local item="$matches[1]"
-        # Check if there's another level after this word
+        # If there is another level, add a dot. 
+        # If not, add a space.
         if [[ -n "${(M)_vol_plugin_list:#$IPREFIX$item.*}" ]]; then
-            # Use -S "." to force the dot and -q so it's removable.
-            # -n means "don't add a space"
-            compadd -S "." -q -n -- "$item"
+            compadd -S "." -q -- "$item"
         else
-            # This is the actual end of a plugin name
             compadd -S " " -- "$item"
         fi
     else
-        # Show multiple possibilities; don't add anything yet
-        compadd -S "" -n -a matches
+        # Multiple possibilities
+        compadd -a matches
     fi
 }
 
