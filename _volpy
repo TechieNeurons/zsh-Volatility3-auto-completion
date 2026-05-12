@@ -1,19 +1,21 @@
-#compdef vol.py
+#compdef vol.py /opt/volatility3/vol.py
 
 _vol_plugins() {
-    local -a plugins
-    local cur_prefix="${words[CURRENT]}"
-
-    if [[ "$cur_prefix" == -* ]]; then
-        _arguments '-f[file]' '-h[help]' '--help'
-        return
-    fi
-
     if [[ -z "$_vol_plugin_list" ]]; then
-        _vol_plugin_list=($(/opt/volatility3/vol.py --help | grep -E '^[a-zA-Z0-9_]+\.' | awk '{print $1}'))
+        _vol_plugin_list=($(/opt/volatility3/vol.py --help | awk '/^  +[a-zA-Z0-9_]+\.[a-zA-Z0-9_.]+/ {print $1}' | sed 's/\.$//'))
     fi
 
     _multi_parts -S "." . _vol_plugin_list
 }
 
-_vol_plugins "$@"
+_volpy() {
+    _arguments -C \
+        '-f[Input image file]:image file:_files' \
+        '-o[Output directory]:directory:_files -/' \
+        '-h[Show help]' \
+        '--help[Show help]' \
+        '*-v[Verbosity]' \
+        '*:plugins:_vol_plugins'
+}
+
+_volpy "$@"
