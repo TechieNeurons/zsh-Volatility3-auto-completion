@@ -1,7 +1,9 @@
-#compdef vol.py /opt/volatility3/vol.py
+#compdef vol.py
 
 _vol_plugins() {
-        local -a plugins matches
+    local VOL_PATH="/opt/volatility3/vol.py"
+
+    local -a plugins matches
     if [[ -z "$_vol_plugin_list" ]]; then
         _vol_plugin_list=($(/opt/volatility3/vol.py --help | awk '/^  +[a-zA-Z0-9_]+\.[a-zA-Z0-9_.]+/ {print $1}' | sed 's/\.$//'))
     fi
