@@ -1,50 +1,52 @@
 #compdef vol.py /opt/volatility3/vol.py
 
 _vol_plugins() {
+    local -a plugins
     if [[ -z "$_vol_plugin_list" ]]; then
         _vol_plugin_list=($(/opt/volatility3/vol.py --help | awk '/^  +[a-zA-Z0-9_]+\.[a-zA-Z0-9_.]+/ {print $1}' | sed 's/\.$//'))
     fi
 
     # _multi_parts -i -S "." -q . _vol_plugin_list
 
-# 2. Tell Zsh that we are completing a string separated by dots
-    # This allows Zsh to handle the 'li -> linux' part naturally
-    local sep="."
-    compset -P "*$sep"
-
-    # 3. Filter the list based on what is already typed before the last dot
-    local prefix="${IPREFIX}"
-    local -a choices
-    local -a full_matches
+    local cur="${words[CURRENT]}"
     
-    for p in $_vol_plugin_list; do
-        if [[ "$p" == "$prefix"* ]]; then
-            # Get the next part after the current prefix
-            local rest="${p#$prefix}"
-            local next_part="${rest%%.*}"
-            choices+=("$next_part")
-            full_matches+=("$p")
-        fi
-    done
-    
-    # Remove duplicates
-    choices=(${(u)choices})
-
-    # 4. Logic for Dot vs Space
-    if (( ${#choices} == 1 )); then
-        local item="$choices[1]"
-        # Check if this specific match has more levels in any plugin
-        if [[ -n "${full_matches[(r)$prefix$item.*]}" ]]; then
-            # There are deeper levels: add dot, but keep the suffix 'quiet'
-            compadd -S "." -q -- "$item"
-        else
-            # This is the leaf: add a space
-            compadd -S " " -- "$item"
-        fi
+    # If there's no dot yet, show the first level (linux, windows, banners, etc.)
+    if [[ "$cur" != *.* ]]; then
+        local -a first_lvl
+        for p in $_vol_plugin_list; do
+            first_lvl+=("${p%%.*}")
+        done
+        # -S . adds the dot ONLY when you finish the word
+        compadd -S "." -q -- ${(u)first_lvl}
     else
-        # Multiple choices (e.g., windows.malware vs windows.registry)
-        # Add no suffix so the user can keep typing
-        compadd -S "" -- "$choices"
+        # We have at least one dot.
+        # Find all plugins that match the prefix including the dots
+        local prefix="${cur%.*}."
+        local -a matches
+        for p in $_vol_plugin_list; do
+            if [[ "$p" == "$prefix"* ]]; then
+                # Get the part after the dots we already typed
+                local suffix="${p#$prefix}"
+                # Get only the next segment
+                matches+=("${suffix%%.*}")
+            fi
+        done
+        
+        # Determine if we should add a dot or a space
+        local -a final_matches
+        final_matches=(${(u)matches})
+        
+        if (( ${#final_matches} == 1 )); then
+            # Check if this match has even deeper levels
+            local test_match="$prefix${final_matches[1]}."
+            if [[ -n "${(M)_vol_plugin_list:#$test_match*}" ]]; then
+                compadd -S "." -q -- "$final_matches"
+            else
+                compadd -S " " -- "$final_matches"
+            fi
+        else
+            compadd -S "" -- "$final_matches"
+        fi
     fi
 }
 
