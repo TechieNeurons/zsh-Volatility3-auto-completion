@@ -8,18 +8,16 @@ _vol_plugins() {
 
     # _multi_parts -i -S "." -q . _vol_plugin_list
 
-    # 2. This is the fix for the "freeze": 
-    # It tells Zsh to treat everything before the last dot as "already done"
+    # Handle the "dots" as separators properly
+    local cur="${words[CURRENT]}"
+    
+    # 1. If there's a dot, tell Zsh to ignore everything before the last dot
     compset -P "*."
 
-    # 3. Get what we have typed AFTER the last dot
-    local cur="${words[CURRENT]}"
-    # IPREFIX contains everything before the dot (e.g., "linux.")
-    # PREFIX contains what we are currently typing (e.g., "mal")
-
+    # 2. Filter the plugins based on the prefix (including dots we've typed)
+    # IPREFIX is the part handled by compset -P (e.g., "linux.")
     for p in $_vol_plugin_list; do
         if [[ "$p" == "$IPREFIX"* ]]; then
-            # Extract only the next part
             local rest="${p#$IPREFIX}"
             matches+=("${rest%%.*}")
         fi
@@ -27,19 +25,21 @@ _vol_plugins() {
 
     matches=(${(u)matches})
 
-    # 4. Handle Suffixes (Dot vs Space)
+    # 3. CRITICAL FIX: Determine suffix behavior
     if (( ${#matches} == 1 )); then
         local item="$matches[1]"
-        # If there is another dot in the full path after this item, add a dot
+        # Check if there's another level after this word
         if [[ -n "${(M)_vol_plugin_list:#$IPREFIX$item.*}" ]]; then
-            compadd -S "." -q -- "$item"
+            # Use -S "." to force the dot and -q so it's removable.
+            # -n means "don't add a space"
+            compadd -S "." -q -n -- "$item"
         else
-            # Final level: add a space
+            # This is the actual end of a plugin name
             compadd -S " " -- "$item"
         fi
     else
-        # Multiple matches (e.g., check_afinfo, check_creds)
-        compadd -a matches
+        # Show multiple possibilities; don't add anything yet
+        compadd -S "" -n -a matches
     fi
 }
 
