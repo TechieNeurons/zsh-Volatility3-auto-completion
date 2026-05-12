@@ -1,25 +1,26 @@
 #compdef vol.py /opt/volatility3/vol.py
 
 _vol_plugins() {
-    local -a plugins matches
+        local -a plugins matches
     if [[ -z "$_vol_plugin_list" ]]; then
         _vol_plugin_list=($(/opt/volatility3/vol.py --help | awk '/^  +[a-zA-Z0-9_]+\.[a-zA-Z0-9_.]+/ {print $1}' | sed 's/\.$//'))
     fi
 
-    # _multi_parts -i -S "." -q . _vol_plugin_list
-
     local cur="${words[CURRENT]}"
 
-    # Logic to handle the "already completed" state
-    # If the user types 'linux' and hits tab, we want 'linux.'
-    if [[ -n "${_vol_plugin_list[(r)$cur.*]}" && "$cur" != *.* ]]; then
-        compadd -S "." -q -- "$cur"
+    # 1. Handle the "Level Transition" (li -> linux -> linux.)
+    # If the current word is a complete segment that has children, FORCE the dot.
+    if [[ -n "${_vol_plugin_list[(r)$cur.*]}" ]]; then
+        # -S "." adds the dot.
+        # -n tells Zsh NOT to add a space.
+        compadd -S "." -n -- "$cur"
         return
     fi
 
-    # Standard completion logic for sub-levels
+    # 2. Handle sub-level completion
     compset -P "*."
-    
+
+    # Filter for items at the current depth
     for p in $_vol_plugin_list; do
         if [[ "$p" == "$IPREFIX"* ]]; then
             local rest="${p#$IPREFIX}"
@@ -31,16 +32,19 @@ _vol_plugins() {
 
     if (( ${#matches} == 1 )); then
         local item="$matches[1]"
-        # If there is another level, add a dot. 
-        # If not, add a space.
-        if [[ -n "${(M)_vol_plugin_list:#$IPREFIX$item.*}" ]]; then
-            compadd -S "." -q -- "$item"
+        local full_path="$IPREFIX$item"
+
+        # Check if another level exists below this one
+        if [[ -n "${_vol_plugin_list[(r)$full_path.*]}" ]]; then
+            # More levels: Force a dot, no space allowed.
+            compadd -S "." -n -- "$item"
         else
+            # Final level: Finally, allow the space.
             compadd -S " " -- "$item"
         fi
     else
-        # Multiple possibilities
-        compadd -a matches
+        # Multiple matches: show them, but don't add a space or dot yet.
+        compadd -S "" -n -a matches
     fi
 }
 
