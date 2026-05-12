@@ -1,52 +1,45 @@
 #compdef vol.py /opt/volatility3/vol.py
 
 _vol_plugins() {
-    local -a plugins
+    local -a plugins matches
     if [[ -z "$_vol_plugin_list" ]]; then
         _vol_plugin_list=($(/opt/volatility3/vol.py --help | awk '/^  +[a-zA-Z0-9_]+\.[a-zA-Z0-9_.]+/ {print $1}' | sed 's/\.$//'))
     fi
 
     # _multi_parts -i -S "." -q . _vol_plugin_list
 
+    # 2. This is the fix for the "freeze": 
+    # It tells Zsh to treat everything before the last dot as "already done"
+    compset -P "*."
+
+    # 3. Get what we have typed AFTER the last dot
     local cur="${words[CURRENT]}"
-    
-    # If there's no dot yet, show the first level (linux, windows, banners, etc.)
-    if [[ "$cur" != *.* ]]; then
-        local -a first_lvl
-        for p in $_vol_plugin_list; do
-            first_lvl+=("${p%%.*}")
-        done
-        # -S . adds the dot ONLY when you finish the word
-        compadd -S "." -q -- ${(u)first_lvl}
-    else
-        # We have at least one dot.
-        # Find all plugins that match the prefix including the dots
-        local prefix="${cur%.*}."
-        local -a matches
-        for p in $_vol_plugin_list; do
-            if [[ "$p" == "$prefix"* ]]; then
-                # Get the part after the dots we already typed
-                local suffix="${p#$prefix}"
-                # Get only the next segment
-                matches+=("${suffix%%.*}")
-            fi
-        done
-        
-        # Determine if we should add a dot or a space
-        local -a final_matches
-        final_matches=(${(u)matches})
-        
-        if (( ${#final_matches} == 1 )); then
-            # Check if this match has even deeper levels
-            local test_match="$prefix${final_matches[1]}."
-            if [[ -n "${(M)_vol_plugin_list:#$test_match*}" ]]; then
-                compadd -S "." -q -- "$final_matches"
-            else
-                compadd -S " " -- "$final_matches"
-            fi
-        else
-            compadd -S "" -- "$final_matches"
+    # IPREFIX contains everything before the dot (e.g., "linux.")
+    # PREFIX contains what we are currently typing (e.g., "mal")
+
+    for p in $_vol_plugin_list; do
+        if [[ "$p" == "$IPREFIX"* ]]; then
+            # Extract only the next part
+            local rest="${p#$IPREFIX}"
+            matches+=("${rest%%.*}")
         fi
+    done
+
+    matches=(${(u)matches})
+
+    # 4. Handle Suffixes (Dot vs Space)
+    if (( ${#matches} == 1 )); then
+        local item="$matches[1]"
+        # If there is another dot in the full path after this item, add a dot
+        if [[ -n "${(M)_vol_plugin_list:#$IPREFIX$item.*}" ]]; then
+            compadd -S "." -q -- "$item"
+        else
+            # Final level: add a space
+            compadd -S " " -- "$item"
+        fi
+    else
+        # Multiple matches (e.g., check_afinfo, check_creds)
+        compadd -a matches
     fi
 }
 
