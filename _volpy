@@ -5,7 +5,46 @@ _vol_plugins() {
         _vol_plugin_list=($(/opt/volatility3/vol.py --help | awk '/^  +[a-zA-Z0-9_]+\.[a-zA-Z0-9_.]+/ {print $1}' | sed 's/\.$//'))
     fi
 
-    _multi_parts -S "." . _vol_plugin_list
+    # _multi_parts -i -S "." -q . _vol_plugin_list
+
+    # 2. Determine how many dots we currently have
+    # This helps us figure out if we are at "linux", "linux.malware", etc.
+    local dots="${cur_prefix//[^.]/}"
+    local level=$((${#dots} + 1))
+    local prefix_filter="${cur_prefix%.*}"
+
+    # 3. Filter matches for the current level
+    for p in $_vol_plugin_list; do
+        # If we have a prefix (e.g., "linux."), only look at plugins starting with it
+        if [[ "$level" -gt 1 ]]; then
+            [[ "$p" != "$prefix_filter"* ]] && continue
+        fi
+
+        # Extract the specific segment at our current level
+        local segment=$(echo "$p" | cut -d. -f$level)
+        [[ -n "$segment" ]] && matches+=("$segment")
+    done
+
+    # Remove duplicates from matches
+    matches=(${(u)matches})
+
+    # 4. Completion Behavior
+    if (( ${#matches} == 1 )); then
+        # Check if this single match has children (more dots exist in the full plugin list)
+        local full_plugin_match="${prefix_filter}.${matches[1]}"
+        [[ "$level" -eq 1 ]] && full_plugin_match="${matches[1]}"
+        
+        if [[ -n "${(M)_vol_plugin_list:#${full_plugin_match}.*}" ]]; then
+            # More levels exist: complete the word and add a dot
+            compadd -S "." -- "$matches"
+        else
+            # Final level: complete the word and add a space
+            compadd -S " " -- "$matches"
+        fi
+    else
+        # Multiple matches: complete as much as possible, no suffix
+        compadd -S "" -- "$matches"
+    fi
 }
 
 _volpy() {
